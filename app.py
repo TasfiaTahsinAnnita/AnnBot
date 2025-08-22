@@ -96,7 +96,7 @@ def get_conversional_chain():
 st.title("PDF Question Answering Bot")
 
 # GitHub PDF URL
-pdf_url = "https://github.com/TasfiaTahsinAnnita/AnnBot/blob/702e9e1b2c5dff77833f813732341a883157ff1b/For%20Task%20-%20Policy%20file.pdf"  # Replace this with the correct GitHub raw PDF URL
+pdf_url = "https://github.com/TasfiaTahsinAnnita/AnnBot/blob/main/For%20Task%20-%20Policy%20file.pdf"  # Replace this with the correct GitHub raw PDF URL
 
 # Download the PDF
 pdf_file = download_pdf_from_github(pdf_url)
