@@ -73,18 +73,9 @@ st.markdown(
             padding: 8px 10px;
             margin: 4px 0;
             border-radius: 8px;
-            cursor: pointer;
             font-size: 14px;
         }
-        .sidebar-chat-title.active {
-            background: #c7d2fe;
-            color: #111827;
-            font-weight: 600;
-        }
-        .sidebar-chat-title.inactive {
-            background: #e5e7eb;
-            color: #374151;
-        }
+        .sidebar .stRadio > div { gap: 6px; }
     </style>
     """,
     unsafe_allow_html=True
@@ -195,37 +186,41 @@ def _new_chat(title: str | None = None):
             output_key="answer",
         ),
     }
+    # Initialize nonce for this chat's input-clearing mechanism
+    st.session_state.nonces[chat_id] = 0
     st.session_state.current_chat_id = chat_id
 
 
+# Initialize session state
 if "chats" not in st.session_state:
     st.session_state.chats = {}
 if "current_chat_id" not in st.session_state:
+    st.session_state.current_chat_id = None
+if "nonces" not in st.session_state:
+    st.session_state.nonces = {}
+
+if st.session_state.current_chat_id is None:
     _new_chat("Chat 1")  # initialize first chat
 
 
 # -----------------------------
-# Sidebar: stacked clickable chat list (no dropdown, no extra buttons)
+# Sidebar: stacked clickable chat list (radio) + New Chat
 # -----------------------------
 st.sidebar.header("Chats")
 if st.sidebar.button("➕ New Chat", use_container_width=True):
     _new_chat()
     st.rerun()
 
-# Use a radio to render a stacked, clickable list of chats
 chat_ids = list(st.session_state.chats.keys())
 if st.session_state.current_chat_id not in chat_ids:
     st.session_state.current_chat_id = chat_ids[0]
 current_index = chat_ids.index(st.session_state.current_chat_id)
 
 selected_id = st.sidebar.radio(
-    label="",
-    options=chat_ids,
-    index=current_index,
+    label="", options=chat_ids, index=current_index,
     format_func=lambda cid: st.session_state.chats[cid]["title"],
 )
 
-# Switch the active chat when a different one is selected
 if selected_id != st.session_state.current_chat_id:
     st.session_state.current_chat_id = selected_id
     st.rerun()
@@ -238,7 +233,8 @@ st.title("📚 PDF Question Answering Bot")
 st.subheader(st.session_state.chats[st.session_state.current_chat_id]["title"])
 st.caption("Ask questions about the financial policy PDF. Each chat has its own memory.")
 
-current_chat = st.session_state.chats[st.session_state.current_chat_id]
+current_chat_id = st.session_state.current_chat_id
+current_chat = st.session_state.chats[current_chat_id]
 vector_store = st.session_state.vector_store
 
 # Build chain for this chat (uses its own memory)
@@ -251,11 +247,12 @@ for q, a in current_chat["history"][-20:]:
     st.markdown(f"<div class='user-q'>You: {escape(q)}</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='bot-a'>Bot: {escape(a)}</div>", unsafe_allow_html=True)
 
-# Input at the bottom
-q_key = f"q_input_{st.session_state.current_chat_id}"
+# Input at the bottom (nonce-based key so we can "clear" it)
+nonce = st.session_state.nonces.get(current_chat_id, 0)
+q_key = f"q_input_{current_chat_id}_{nonce}"
 question = st.text_input("Enter your question:", key=q_key)
 
-if st.button("Submit", type="primary", key=f"submit_{st.session_state.current_chat_id}"):
+if st.button("Submit", type="primary", key=f"submit_{current_chat_id}"):
     if question.strip():
         with st.spinner("Thinking..."):
             result = convo_chain({"question": question.strip()})
@@ -266,8 +263,8 @@ if st.button("Submit", type="primary", key=f"submit_{st.session_state.current_ch
         if len(current_chat["history"]) == 1 and question.strip():
             t = question.strip()
             current_chat["title"] = (t[:30] + "…") if len(t) > 30 else t
-        # Clear the input box after answering
-        st.session_state[q_key] = ""
+        # Bump nonce to remount the text_input with a new key => cleared box
+        st.session_state.nonces[current_chat_id] = nonce + 1
         st.rerun()
     else:
         st.warning("Please enter a question to get an answer.")
