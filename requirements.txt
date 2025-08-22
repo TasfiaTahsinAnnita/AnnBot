@@ -1,5 +1,6 @@
 streamlit
 pdfplumber
+requests
 google-generativeai
 langchain
 langchain-community
@@ -7,4 +8,3 @@ langchain-google-genai
 faiss-cpu
 sentence-transformers
 PyPDF2
-requests
