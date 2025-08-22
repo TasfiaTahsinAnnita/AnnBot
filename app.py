@@ -21,19 +21,11 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 
-
-# -----------------------------
-# Google API Key Setup
-# -----------------------------
 GOOGLE_API_KEY = "AIzaSyDxd5WI0-AcioR9KqjESVElivPzdk-QLo8"
 genai.configure(api_key=GOOGLE_API_KEY)
 os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
 
-
-# -----------------------------
-# Styling
-# -----------------------------
-st.set_page_config(page_title="📚 PDF Question Answering Bot", layout="wide")
+st.set_page_config(page_title="What do you want to know?", layout="wide")
 
 st.markdown(
     """
@@ -58,8 +50,8 @@ st.markdown(
             word-wrap: break-word;
         }
         .bot-a {
-            background: #0b5ed7; /* dark blue */
-            color: #ffffff;      /* white text */
+            background: #0b5ed7;
+            color: #ffffff;
             display: inline-block;
             padding: 10px 14px;
             margin: 4px 0 12px 18px;
@@ -81,15 +73,10 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-
-# -----------------------------
-# PDF helpers
-# -----------------------------
 def download_pdf_from_github(pdf_url: str) -> bytes:
     resp = requests.get(pdf_url, timeout=60)
     resp.raise_for_status()
     return resp.content
-
 
 def extract_page_docs_from_pdf_bytes(pdf_bytes: bytes) -> List[Document]:
     docs = []
@@ -100,7 +87,6 @@ def extract_page_docs_from_pdf_bytes(pdf_bytes: bytes) -> List[Document]:
                 docs.append(Document(page_content=text, metadata={"page": i + 1}))
     return docs
 
-
 def split_into_chunks(page_docs: List[Document]) -> List[Document]:
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
@@ -109,12 +95,10 @@ def split_into_chunks(page_docs: List[Document]) -> List[Document]:
     )
     return splitter.split_documents(page_docs)
 
-
 def build_vector_store(chunks: List[Document]) -> FAISS:
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     vs = FAISS.from_documents(chunks, embedding=embeddings)
     return vs
-
 
 def build_conversational_chain(vector_store: FAISS, memory: ConversationBufferMemory) -> ConversationalRetrievalChain:
     prompt_template = """
@@ -133,12 +117,10 @@ Answer:
         template=prompt_template,
         input_variables=["context", "question"],
     )
-
     llm = ChatGoogleGenerativeAI(
         model="gemini-1.5-flash-latest",
         temperature=0.2,
     )
-
     retriever = vector_store.as_retriever(search_kwargs={"k": 4})
     chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
@@ -146,15 +128,11 @@ Answer:
         memory=memory,
         chain_type="stuff",
         combine_docs_chain_kwargs={"prompt": prompt},
-        return_source_documents=False,  # no sources
+        return_source_documents=False,
         verbose=False,
     )
     return chain
 
-
-# -----------------------------
-# App Boot: load PDF & vector store once per session
-# -----------------------------
 PDF_URL = "https://github.com/TasfiaTahsinAnnita/AnnBot/raw/main/For%20Task%20-%20Policy%20file.pdf"
 
 if "vector_store" not in st.session_state:
@@ -168,30 +146,22 @@ if "vector_store" not in st.session_state:
         st.session_state.vector_store = build_vector_store(chunks)
     st.success("PDF loaded successfully! You can now ask questions.")
 
-
-# -----------------------------
-# Multi-chat state
-# -----------------------------
 def _new_chat(title: str | None = None):
-    """Create a new chat with its own memory & empty history."""
     chat_id = str(uuid.uuid4())
     chat_title = title or f"Chat {len(st.session_state.chats) + 1}"
     st.session_state.chats[chat_id] = {
         "title": chat_title,
         "created_at": int(time.time()),
-        "history": [],  # list of (q, a)
+        "history": [],
         "memory": ConversationBufferMemory(
             memory_key="chat_history",
             return_messages=True,
             output_key="answer",
         ),
     }
-    # Initialize nonce for this chat's input-clearing mechanism
     st.session_state.nonces[chat_id] = 0
     st.session_state.current_chat_id = chat_id
 
-
-# Initialize session state
 if "chats" not in st.session_state:
     st.session_state.chats = {}
 if "current_chat_id" not in st.session_state:
@@ -200,13 +170,9 @@ if "nonces" not in st.session_state:
     st.session_state.nonces = {}
 
 if st.session_state.current_chat_id is None:
-    _new_chat("Chat 1")  # initialize first chat
+    _new_chat("Chat 1")
 
-
-# -----------------------------
-# Sidebar: stacked clickable chat list (radio) + New Chat
-# -----------------------------
-st.sidebar.header("Chats")
+st.sidebar.header("AnnBot")
 if st.sidebar.button("➕ New Chat", use_container_width=True):
     _new_chat()
     st.rerun()
@@ -225,29 +191,22 @@ if selected_id != st.session_state.current_chat_id:
     st.session_state.current_chat_id = selected_id
     st.rerun()
 
-
-# -----------------------------
-# UI: conversation for selected chat
-# -----------------------------
-st.title("📚 PDF Question Answering Bot")
+st.title("What do you want to know?")
 st.subheader(st.session_state.chats[st.session_state.current_chat_id]["title"])
-st.caption("Ask questions about the financial policy PDF. Each chat has its own memory.")
+st.caption("Ask questions regarding the Financial policies.")
 
 current_chat_id = st.session_state.current_chat_id
 current_chat = st.session_state.chats[current_chat_id]
 vector_store = st.session_state.vector_store
 
-# Build chain for this chat (uses its own memory)
 convo_chain = build_conversational_chain(vector_store, current_chat["memory"])
 
-# Conversation history at the top
 if current_chat["history"]:
     st.markdown("<div class='chat-meta'>Recent messages</div>", unsafe_allow_html=True)
 for q, a in current_chat["history"][-20:]:
     st.markdown(f"<div class='user-q'>You: {escape(q)}</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='bot-a'>Bot: {escape(a)}</div>", unsafe_allow_html=True)
 
-# Input at the bottom (nonce-based key so we can "clear" it)
 nonce = st.session_state.nonces.get(current_chat_id, 0)
 q_key = f"q_input_{current_chat_id}_{nonce}"
 question = st.text_input("Enter your question:", key=q_key)
@@ -257,14 +216,11 @@ if st.button("Submit", type="primary", key=f"submit_{current_chat_id}"):
         with st.spinner("Thinking..."):
             result = convo_chain({"question": question.strip()})
             answer = result.get("answer", "").strip()
-        # Save to this chat only
         current_chat["history"].append((question.strip(), answer))
-        # Optional: set a better title from first user question
         if len(current_chat["history"]) == 1 and question.strip():
             t = question.strip()
             current_chat["title"] = (t[:30] + "…") if len(t) > 30 else t
-        # Bump nonce to remount the text_input with a new key => cleared box
         st.session_state.nonces[current_chat_id] = nonce + 1
         st.rerun()
     else:
-        st.warning("Please enter a question to get an answer.")
+        st.warning("Please ask your queries.")
