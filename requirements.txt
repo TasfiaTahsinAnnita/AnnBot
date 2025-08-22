@@ -1,9 +1,10 @@
+streamlit
 pdfplumber
+google-generativeai
 langchain
+langchain-community
 langchain-google-genai
 faiss-cpu
-streamlit
-PyPDF2
 sentence-transformers
-google-generativeai
-langchain_community
+PyPDF2
+requests
