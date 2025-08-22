@@ -58,8 +58,8 @@ st.markdown(
             word-wrap: break-word;
         }
         .bot-a {
-            background: #0b5ed7; /* dark blue for contrast */
-            color: #ffffff;      /* <-- white text as requested */
+            background: #0b5ed7; /* dark blue */
+            color: #ffffff;      /* white text */
             display: inline-block;
             padding: 10px 14px;
             margin: 4px 0 12px 18px;
@@ -205,26 +205,30 @@ if "current_chat_id" not in st.session_state:
 
 
 # -----------------------------
-# Sidebar: stacked chat list + new chat
+# Sidebar: stacked clickable chat list (no dropdown, no extra buttons)
 # -----------------------------
 st.sidebar.header("Chats")
 if st.sidebar.button("➕ New Chat", use_container_width=True):
     _new_chat()
     st.rerun()
 
-# Show chats one after another (no dropdown)
-for cid, chat in st.session_state.chats.items():
-    is_active = (cid == st.session_state.current_chat_id)
-    css_class = "active" if is_active else "inactive"
-    # Render a clickable block
-    st.sidebar.markdown(
-        f"<div class='sidebar-chat-title {css_class}'>{escape(chat['title'])}</div>",
-        unsafe_allow_html=True
-    )
-    # Make it clickable via a button under each item (keeps stacked layout and clear click targets)
-    if st.sidebar.button("Open", key=f"open_{cid}"):
-        st.session_state.current_chat_id = cid
-        st.rerun()
+# Use a radio to render a stacked, clickable list of chats
+chat_ids = list(st.session_state.chats.keys())
+if st.session_state.current_chat_id not in chat_ids:
+    st.session_state.current_chat_id = chat_ids[0]
+current_index = chat_ids.index(st.session_state.current_chat_id)
+
+selected_id = st.sidebar.radio(
+    label="",
+    options=chat_ids,
+    index=current_index,
+    format_func=lambda cid: st.session_state.chats[cid]["title"],
+)
+
+# Switch the active chat when a different one is selected
+if selected_id != st.session_state.current_chat_id:
+    st.session_state.current_chat_id = selected_id
+    st.rerun()
 
 
 # -----------------------------
@@ -248,7 +252,8 @@ for q, a in current_chat["history"][-20:]:
     st.markdown(f"<div class='bot-a'>Bot: {escape(a)}</div>", unsafe_allow_html=True)
 
 # Input at the bottom
-question = st.text_input("Enter your question:", key=f"q_input_{st.session_state.current_chat_id}")
+q_key = f"q_input_{st.session_state.current_chat_id}"
+question = st.text_input("Enter your question:", key=q_key)
 
 if st.button("Submit", type="primary", key=f"submit_{st.session_state.current_chat_id}"):
     if question.strip():
@@ -261,6 +266,8 @@ if st.button("Submit", type="primary", key=f"submit_{st.session_state.current_ch
         if len(current_chat["history"]) == 1 and question.strip():
             t = question.strip()
             current_chat["title"] = (t[:30] + "…") if len(t) > 30 else t
+        # Clear the input box after answering
+        st.session_state[q_key] = ""
         st.rerun()
     else:
         st.warning("Please enter a question to get an answer.")
