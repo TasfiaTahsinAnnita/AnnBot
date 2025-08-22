@@ -1,6 +1,6 @@
 import os
 import requests
-from PyPDF2 import PdfReader
+import pdfplumber  # Updated for better PDF text extraction
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 import google.generativeai as genai
@@ -23,16 +23,16 @@ def download_pdf_from_github(pdf_url):
         f.write(response.content)
     return file_name
 
-# Function to extract text from PDFs
+# Function to extract text from PDFs using pdfplumber
 def get_pdf_text(pdf_docs):
     text = ""
     if isinstance(pdf_docs, str):
         pdf_docs = [pdf_docs]  # Wrap single path in a list
 
     for pdf in pdf_docs:
-        pdf_reader = PdfReader(pdf)
-        for page in pdf_reader.pages:
-            text += page.extract_text()
+        with pdfplumber.open(pdf) as pdf_reader:  # Use pdfplumber for better text extraction
+            for page in pdf_reader.pages:
+                text += page.extract_text()
     return text
 
 # Split the text into chunks
@@ -96,7 +96,7 @@ def get_conversional_chain():
 st.title("PDF Question Answering Bot")
 
 # GitHub PDF URL
-pdf_url = "https://github.com/TasfiaTahsinAnnita/AnnBot/blob/main/For%20Task%20-%20Policy%20file.pdf"  # Replace this with the correct GitHub raw PDF URL
+pdf_url = "https://github.com/TasfiaTahsinAnnita/AnnBot/raw/main/For%20Task%20-%20Policy%20file.pdf"  # Corrected to raw PDF URL
 
 # Download the PDF
 pdf_file = download_pdf_from_github(pdf_url)
@@ -117,4 +117,3 @@ if question:
     st.write("Bot response:")
     response = user_input(question)
     st.write(response)
-
