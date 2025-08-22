@@ -4,7 +4,9 @@ import requests
 import pdfplumber  # Updated for better PDF text extraction
 import streamlit as st
 
-from typing import List
+from typing import List, Tuple, Dict, Any
+from hashlib import md5
+
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 from langchain.prompts import PromptTemplate
@@ -90,24 +92,44 @@ def extract_page_docs_from_pdf_bytes(pdf_bytes: bytes) -> List[Document]:
     return docs
 
 
+# ---------- Caching helpers (hashable inputs only) ----------
+def _serialize_docs(docs: List[Document]) -> List[Tuple[str, Dict[str, Any]]]:
+    """Turn Document objects into hashable tuples (content, metadata)."""
+    out = []
+    for d in docs:
+        # metadata is dict[str, Any]; convert to sorted tuple for hashing
+        meta_sorted = tuple(sorted((k, str(v)) for k, v in (d.metadata or {}).items()))
+        out.append((d.page_content, dict(meta_sorted)))
+    return out
+
+
+def _deserialize_docs(serial: List[Tuple[str, Dict[str, Any]]]) -> List[Document]:
+    """Rebuild Document objects from serialized tuples."""
+    return [Document(page_content=txt, metadata=meta) for txt, meta in serial]
+
+
 @st.cache_data(show_spinner=False)
-def split_into_chunks(page_docs: List[Document]) -> List[Document]:
+def split_into_chunks_cached(pdf_hash: str, page_docs_serial: List[Tuple[str, Dict[str, Any]]]) -> List[Tuple[str, Dict[str, Any]]]:
     """
-    Split while preserving page metadata for proper citations.
+    Cache-friendly chunking. Inputs are only simple/hashable types.
+    Returns serialized chunks as (text, metadata) tuples.
     """
+    page_docs = _deserialize_docs(page_docs_serial)
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=150,
         separators=["\n\n", "\n", " ", ""],
     )
-    return splitter.split_documents(page_docs)
+    chunks = splitter.split_documents(page_docs)
+    return _serialize_docs(chunks)
 
 
 @st.cache_resource(show_spinner=False)
-def build_vector_store(chunks: List[Document]) -> FAISS:
+def build_vector_store_cached(pdf_hash: str, chunks_serial: List[Tuple[str, Dict[str, Any]]]) -> FAISS:
     """
-    Build FAISS from documents using SentenceTransformer (via HuggingFaceEmbeddings).
+    Cache the FAISS index per PDF hash and chunk content (both hashable).
     """
+    chunks = _deserialize_docs(chunks_serial)
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     vs = FAISS.from_documents(chunks, embedding=embeddings)
     return vs
@@ -207,14 +229,20 @@ with st.spinner('Processing the PDF...'):
         st.error(f"Failed to download PDF: {e}")
         st.stop()
 
-    page_docs = extract_page_docs_from_pdf_bytes(pdf_bytes)
-    if not page_docs:
-        st.error("Could not extract any text from the PDF.")
-        st.stop()
+    # Make a stable hash key for cache
+    pdf_hash = md5(pdf_bytes).hexdigest()
 
-    # Split into chunks and create a vector store
-    chunks = split_into_chunks(page_docs)
-    vector_store = build_vector_store(chunks)
+    # Extract and serialize page docs (hashable)
+    page_docs = extract_page_docs_from_pdf_bytes(pdf_bytes)
+    page_docs_serial = _serialize_docs(page_docs)
+
+    # Split into chunks (cached, hashable)
+    chunks_serial = split_into_chunks_cached(pdf_hash, page_docs_serial)
+
+    # Build vector store (cached, hashable inputs)
+    vector_store = build_vector_store_cached(pdf_hash, chunks_serial)
+
+    # Build the conversational chain (not cached; fast)
     convo_chain = build_conversational_chain(vector_store)
 
 st.success('PDF loaded successfully! You can now ask questions.')
