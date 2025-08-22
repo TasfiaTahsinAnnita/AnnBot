@@ -5,3 +5,4 @@ streamlit
 PyPDF2
 sentence-transformers
 google-generativeai
+langchain_community
