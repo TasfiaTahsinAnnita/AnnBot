@@ -166,7 +166,7 @@ if st.session_state.current_chat_id is None:
 st.sidebar.markdown("### ")
 logo_container = st.sidebar.container()
 if st.session_state.logo_src:
-    logo_container.image(st.session_state.logo_src, width=140, use_column_width=False)
+    logo_container.image(st.session_state.logo_src, width=140)
 logo_container.markdown("<div class='sidebar-logo'></div>", unsafe_allow_html=True)
 
 with st.sidebar.expander("Branding", expanded=False):
@@ -182,7 +182,7 @@ with st.sidebar.expander("Branding", expanded=False):
         st.rerun()
 
 st.sidebar.header("Chats")
-if st.sidebar.button("➕ New Chat", use_container_width=True):
+if st.sidebar.button("➕ New Chat"):
     _new_chat()
     st.rerun()
 
