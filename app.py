@@ -6,6 +6,7 @@ import requests
 import pdfplumber
 import streamlit as st
 
+from html import escape
 from typing import List
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
@@ -41,9 +42,49 @@ st.markdown(
         .sidebar .sidebar-content { background-color: #f0f0f5; }
         h1 { color: #004c8c; }
         .stButton>button { background-color: #0066ff; color: white; }
-        .user-q { color: #0066ff; font-weight: bold; margin-top: 10px; }
-        .bot-a { color: #333; margin-left: 10px; margin-bottom: 15px; }
-        .chat-meta { font-size: 12px; color: #666; margin-bottom: 8px; }
+
+        .chat-meta { font-size: 12px; color: #666; margin: 8px 0; }
+
+        .user-q {
+            background: #eef2ff;
+            color: #1e40af;
+            border: 1px solid #c7d2fe;
+            display: inline-block;
+            padding: 8px 12px;
+            margin: 8px 0 2px 0;
+            border-radius: 12px;
+            max-width: 900px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .bot-a {
+            background: #0b5ed7; /* dark blue for contrast */
+            color: #ffffff;      /* <-- white text as requested */
+            display: inline-block;
+            padding: 10px 14px;
+            margin: 4px 0 12px 18px;
+            border-radius: 12px;
+            max-width: 900px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .sidebar-chat-title {
+            padding: 8px 10px;
+            margin: 4px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .sidebar-chat-title.active {
+            background: #c7d2fe;
+            color: #111827;
+            font-weight: 600;
+        }
+        .sidebar-chat-title.inactive {
+            background: #e5e7eb;
+            color: #374151;
+        }
     </style>
     """,
     unsafe_allow_html=True
@@ -164,27 +205,26 @@ if "current_chat_id" not in st.session_state:
 
 
 # -----------------------------
-# Sidebar: chat list + new chat
+# Sidebar: stacked chat list + new chat
 # -----------------------------
 st.sidebar.header("Chats")
-
-# Build choices for selectbox
-chat_ids = list(st.session_state.chats.keys())
-choices = [st.session_state.chats[cid]["title"] for cid in chat_ids]
-current_idx = chat_ids.index(st.session_state.current_chat_id) if st.session_state.current_chat_id in chat_ids else 0
-
-selected_title = st.sidebar.selectbox("Select a chat", choices, index=current_idx, key="chat_selector")
-
-# Map title back to id
-for cid in chat_ids:
-    if st.session_state.chats[cid]["title"] == selected_title:
-        if cid != st.session_state.current_chat_id:
-            st.session_state.current_chat_id = cid
-        break
-
 if st.sidebar.button("➕ New Chat", use_container_width=True):
     _new_chat()
     st.rerun()
+
+# Show chats one after another (no dropdown)
+for cid, chat in st.session_state.chats.items():
+    is_active = (cid == st.session_state.current_chat_id)
+    css_class = "active" if is_active else "inactive"
+    # Render a clickable block
+    st.sidebar.markdown(
+        f"<div class='sidebar-chat-title {css_class}'>{escape(chat['title'])}</div>",
+        unsafe_allow_html=True
+    )
+    # Make it clickable via a button under each item (keeps stacked layout and clear click targets)
+    if st.sidebar.button("Open", key=f"open_{cid}"):
+        st.session_state.current_chat_id = cid
+        st.rerun()
 
 
 # -----------------------------
@@ -203,9 +243,9 @@ convo_chain = build_conversational_chain(vector_store, current_chat["memory"])
 # Conversation history at the top
 if current_chat["history"]:
     st.markdown("<div class='chat-meta'>Recent messages</div>", unsafe_allow_html=True)
-for i, (q, a) in enumerate(current_chat["history"][-20:], 1):
-    st.markdown(f"<div class='user-q'>You: {q}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='bot-a'>Bot: {a}</div>", unsafe_allow_html=True)
+for q, a in current_chat["history"][-20:]:
+    st.markdown(f"<div class='user-q'>You: {escape(q)}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='bot-a'>Bot: {escape(a)}</div>", unsafe_allow_html=True)
 
 # Input at the bottom
 question = st.text_input("Enter your question:", key=f"q_input_{st.session_state.current_chat_id}")
@@ -219,7 +259,8 @@ if st.button("Submit", type="primary", key=f"submit_{st.session_state.current_ch
         current_chat["history"].append((question.strip(), answer))
         # Optional: set a better title from first user question
         if len(current_chat["history"]) == 1 and question.strip():
-            current_chat["title"] = (question.strip()[:30] + "…") if len(question.strip()) > 30 else question.strip()
+            t = question.strip()
+            current_chat["title"] = (t[:30] + "…") if len(t) > 30 else t
         st.rerun()
     else:
         st.warning("Please enter a question to get an answer.")
