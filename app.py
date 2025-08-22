@@ -172,6 +172,10 @@ if "nonces" not in st.session_state:
 if st.session_state.current_chat_id is None:
     _new_chat("Chat 1")
 
+# --- Sidebar Logo (from your GitHub link) ---
+LOGO_URL = "https://raw.githubusercontent.com/TasfiaTahsinAnnita/AnnBot/main/Annbotlogo.png"
+st.sidebar.image(LOGO_URL, use_container_width=True)
+
 st.sidebar.header("AnnBot")
 if st.sidebar.button("➕ New Chat", use_container_width=True):
     _new_chat()
