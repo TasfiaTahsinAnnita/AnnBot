@@ -9,11 +9,35 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
 import streamlit as st
+from sentence_transformers import SentenceTransformer
+import numpy as np
 
 # Google API Key Setup
 GOOGLE_API_KEY = "AIzaSyDxd5WI0-AcioR9KqjESVElivPzdk-QLo8"
-genai.configure(api_key=GOOGLE_API_KEY) 
+genai.configure(api_key=GOOGLE_API_KEY)
 os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
+
+# Custom CSS for styling
+st.markdown(
+    """
+    <style>
+        .reportview-container {
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        .sidebar .sidebar-content {
+            background-color: #f0f0f5;
+        }
+        h1 {
+            color: #004c8c;
+        }
+        .stButton>button {
+            background-color: #0066ff;
+            color: white;
+        }
+    </style>
+    """, unsafe_allow_html=True
+)
 
 # Function to download the PDF from GitHub repository
 def download_pdf_from_github(pdf_url):
@@ -42,9 +66,6 @@ def get_text_chunks(text):
     return chunks
 
 # Function to get sentence embeddings
-from sentence_transformers import SentenceTransformer
-import numpy as np
-
 def get_sentence_embeddings(text_chunks):
     embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
     embeddings = embedding_model.encode(text_chunks)
@@ -93,27 +114,49 @@ def get_conversional_chain():
     return chain
 
 # Streamlit Interface
-st.title("PDF Question Answering Bot")
+st.set_page_config(page_title="PDF Question Answering Bot", layout="wide")
 
-# GitHub PDF URL
-pdf_url = "https://github.com/TasfiaTahsinAnnita/AnnBot/raw/main/For%20Task%20-%20Policy%20file.pdf"  # Corrected to raw PDF URL
+# Title for the app
+st.title("📚 PDF Question Answering Bot")
+
+# Sidebar with an introduction
+st.sidebar.header("About This App")
+st.sidebar.write(
+    "This bot answers your questions based on the content of a PDF document loaded directly from a GitHub repository. "
+    "Just ask a question related to the document and get an answer!"
+)
+
+# GitHub PDF URL (Corrected to raw PDF URL)
+pdf_url = "https://github.com/TasfiaTahsinAnnita/AnnBot/raw/main/For%20Task%20-%20Policy%20file.pdf"
 
 # Download the PDF
 pdf_file = download_pdf_from_github(pdf_url)
 
-st.write("PDF loaded from GitHub. You can now ask questions!")
+# Show progress bar while the PDF is being processed
+with st.spinner('Processing the PDF...'):
+    raw_text = get_pdf_text(pdf_file)
 
-# Extract text from the PDF
-raw_text = get_pdf_text(pdf_file)
-
-# Split text into chunks and create vector store
+# Split text into chunks and create a vector store
 text_chunks = get_text_chunks(raw_text)
 get_vector_store(text_chunks)
 
-# User input for questions
-question = st.text_input("Ask a question:")
+st.success('PDF loaded successfully! You can now ask questions.')
 
-if question:
-    st.write("Bot response:")
-    response = user_input(question)
-    st.write(response)
+# Layout with columns: Left column for PDF text and right column for the chatbot
+col1, col2 = st.columns(2)
+
+with col1:
+    st.header("PDF Content")
+    st.text_area("Raw Text from PDF", value=raw_text, height=300)
+
+with col2:
+    st.header("Ask a Question")
+    question = st.text_input("Enter your question:")
+    if st.button('Submit'):
+        if question:
+            st.write("Bot response:")
+            response = user_input(question)
+            st.write(response)
+        else:
+            st.write("Please enter a question to get an answer.")
+
