@@ -17,6 +17,7 @@ from langchain_community.vectorstores import FAISS
 
 import google.generativeai as genai
 from langchain_google_genai import ChatGoogleGenerativeAI
+from google.api_core.exceptions import ResourceExhausted
 
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
@@ -100,7 +101,7 @@ def build_vector_store(chunks: List[Document]) -> FAISS:
     vs = FAISS.from_documents(chunks, embedding=embeddings)
     return vs
 
-def build_conversational_chain(vector_store: FAISS, memory: ConversationBufferMemory) -> ConversationalRetrievalChain:
+def build_conversational_chain(vector_store: FAISS, memory: ConversationBufferMemory, model_name: str = "gemini-1.5-flash-latest", k: int = 4, max_output_tokens: int = 512) -> ConversationalRetrievalChain:
     prompt_template = """
 Answer the user's question using ONLY the provided context.
 If the answer is not present in the context, say: "Answer is not available in the text."
@@ -113,15 +114,13 @@ Question:
 
 Answer:
 """
-    prompt = PromptTemplate(
-        template=prompt_template,
-        input_variables=["context", "question"],
-    )
+    prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
     llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash-latest",
+        model=model_name,
         temperature=0.2,
+        max_output_tokens=max_output_tokens,
     )
-    retriever = vector_store.as_retriever(search_kwargs={"k": 4})
+    retriever = vector_store.as_retriever(search_kwargs={"k": k})
     chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
         retriever=retriever,
@@ -172,10 +171,6 @@ if "nonces" not in st.session_state:
 if st.session_state.current_chat_id is None:
     _new_chat("Chat 1")
 
-# --- Sidebar Logo (from your GitHub link) ---
-LOGO_URL = "https://raw.githubusercontent.com/TasfiaTahsinAnnita/AnnBot/main/Annbotlogo.png"
-st.sidebar.image(LOGO_URL, use_container_width=True)
-
 st.sidebar.header("AnnBot")
 if st.sidebar.button("➕ New Chat", use_container_width=True):
     _new_chat()
@@ -203,7 +198,23 @@ current_chat_id = st.session_state.current_chat_id
 current_chat = st.session_state.chats[current_chat_id]
 vector_store = st.session_state.vector_store
 
-convo_chain = build_conversational_chain(vector_store, current_chat["memory"])
+# Primary chain (preferred model)
+primary_chain = build_conversational_chain(
+    vector_store,
+    current_chat["memory"],
+    model_name="gemini-1.5-flash-latest",
+    k=4,
+    max_output_tokens=512,
+)
+
+# Fallback chain (lighter model & smaller retrieval/output)
+fallback_chain = build_conversational_chain(
+    vector_store,
+    current_chat["memory"],
+    model_name="gemini-1.5-flash-8b",
+    k=3,
+    max_output_tokens=256,
+)
 
 if current_chat["history"]:
     st.markdown("<div class='chat-meta'>Recent messages</div>", unsafe_allow_html=True)
@@ -217,14 +228,28 @@ question = st.text_input("Enter your question:", key=q_key)
 
 if st.button("Submit", type="primary", key=f"submit_{current_chat_id}"):
     if question.strip():
-        with st.spinner("Thinking..."):
-            result = convo_chain({"question": question.strip()})
-            answer = result.get("answer", "").strip()
-        current_chat["history"].append((question.strip(), answer))
-        if len(current_chat["history"]) == 1 and question.strip():
-            t = question.strip()
-            current_chat["title"] = (t[:30] + "…") if len(t) > 30 else t
-        st.session_state.nonces[current_chat_id] = nonce + 1
-        st.rerun()
+        try:
+            with st.spinner("Thinking..."):
+                result = primary_chain({"question": question.strip()})
+                answer = result.get("answer", "").strip()
+        except ResourceExhausted:
+            st.warning("Primary model hit a usage limit. Switching to a lighter fallback model.")
+            try:
+                result = fallback_chain({"question": question.strip()})
+                answer = result.get("answer", "").strip()
+            except Exception as e:
+                st.error("The model is temporarily unavailable. Please try a shorter question or try again later.")
+                answer = ""
+        except Exception as e:
+            st.error("Something went wrong while generating the answer.")
+            answer = ""
+
+        if answer:
+            current_chat["history"].append((question.strip(), answer))
+            if len(current_chat["history"]) == 1 and question.strip():
+                t = question.strip()
+                current_chat["title"] = (t[:30] + "…") if len(t) > 30 else t
+            st.session_state.nonces[current_chat_id] = nonce + 1
+            st.rerun()
     else:
         st.warning("Please ask your queries.")
