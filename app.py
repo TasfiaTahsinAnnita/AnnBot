@@ -23,6 +23,12 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 
+# -----------------------------
+# CONFIG: hard-coded API key (as requested)
+# -----------------------------
+GOOGLE_API_KEY = "AIzaSyDxd5WI0-AcioR9KqjESVElivPzdk-QLo8"
+genai.configure(api_key=GOOGLE_API_KEY)
+os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY  # used by langchain_google_genai
 
 # -----------------------------
 # Streamlit page setup & styles
