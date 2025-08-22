@@ -166,7 +166,7 @@ if st.session_state.current_chat_id is None:
 st.sidebar.markdown("### ")
 logo_container = st.sidebar.container()
 if st.session_state.logo_src:
-    logo_container.image(st.session_state.logo_src, width=140)
+    logo_container.image(st.session_state.logo_src, use_container_width=True)
 logo_container.markdown("<div class='sidebar-logo'></div>", unsafe_allow_html=True)
 
 with st.sidebar.expander("Branding", expanded=False):
@@ -182,7 +182,7 @@ with st.sidebar.expander("Branding", expanded=False):
         st.rerun()
 
 st.sidebar.header("Chats")
-if st.sidebar.button("➕ New Chat"):
+if st.sidebar.button("➕ New Chat", use_container_width=True):
     _new_chat()
     st.rerun()
 
@@ -191,7 +191,12 @@ if st.session_state.current_chat_id not in chat_ids:
     st.session_state.current_chat_id = chat_ids[0]
 current_index = chat_ids.index(st.session_state.current_chat_id)
 
-selected_id = st.sidebar.radio(label="", options=chat_ids, index=current_index, format_func=lambda cid: st.session_state.chats[cid]["title"])
+selected_id = st.sidebar.radio(
+    label="",
+    options=chat_ids,
+    index=current_index,
+    format_func=lambda cid: st.session_state.chats[cid]["title"],
+)
 if selected_id != st.session_state.current_chat_id:
     st.session_state.current_chat_id = selected_id
     st.rerun()
@@ -215,7 +220,7 @@ nonce = st.session_state.nonces.get(current_chat_id, 0)
 q_key = f"q_input_{current_chat_id}_{nonce}"
 question = st.text_input("Enter your question:", key=q_key)
 
-if st.button("Submit", type="primary", key=f"submit_{current_chat_id}"):
+if st.button("Submit", type="primary", key=f"submit_{current_chat_id}", use_container_width=True):
     if question.strip():
         with st.spinner("Thinking..."):
             result = convo_chain({"question": question.strip()})
