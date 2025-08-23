@@ -191,6 +191,3 @@ PyPDF2
 
 ---
 
-## License
-
-Choose a license (e.g., MIT) and add it to the repo.
