@@ -30,6 +30,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from google.api_core.exceptions import ResourceExhausted
 
 
+
 GOOGLE_API_KEY = "AIzaSyB6tijdhntntrSl8e5AJE5n1ZpFVdufN_M"
 genai.configure(api_key=GOOGLE_API_KEY)
 os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
