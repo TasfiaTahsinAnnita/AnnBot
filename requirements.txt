@@ -1,23 +1,11 @@
-# Streamlit web app
 streamlit==1.26.0
-
-# PDF handling
-pdfplumber==0.9.0
 requests==2.31.0
-PyPDF2==3.0.1
-
-# LangChain core and extensions
+pdfplumber==0.9.0
 langchain-core==0.2.43
 langchain-community==0.2.19
 langchain-text-splitters==0.2.4
 langchain-google-genai==0.0.4
-
-# Vector embeddings
-sentence-transformers==2.2.2
-faiss-cpu==1.13.2
-
-# Google Gemini API
 google-generativeai==0.3.2
-
-# Misc
-typing-extensions==4.7.1
+faiss-cpu==1.13.2
+sentence-transformers==2.2.2
+PyPDF2==3.0.1
