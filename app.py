@@ -8,17 +8,19 @@ import streamlit as st
 from html import escape
 from typing import List
 
+# LangChain 0.2+ modular imports
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from langchain_core.prompts import PromptTemplate
+from langchain_core.chains import ConversationalRetrievalChain
+from langchain_core.memory import ConversationBufferMemory
 
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
+
 import google.generativeai as genai
 from langchain_google_genai import ChatGoogleGenerativeAI
 from google.api_core.exceptions import ResourceExhausted
-from langchain.chains import ConversationalRetrievalChain
-from langchain.memory import ConversationBufferMemory
 
 
 
