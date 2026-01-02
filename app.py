@@ -2,82 +2,27 @@ import os
 import io
 import time
 import uuid
-import subprocess
-import sys
+import requests
 from html import escape
 from typing import List
 
-# -----------------------------
-# Runtime auto-install function
-# -----------------------------
-def install(pkg):
-    subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
+import pdfplumber
+import streamlit as st
 
-# Try importing packages and auto-install if missing
-try:
-    import streamlit as st
-except ImportError:
-    install("streamlit==1.26.0")
-    import streamlit as st
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
+from langchain_core.prompts import PromptTemplate
 
-try:
-    import pdfplumber
-except ImportError:
-    install("pdfplumber==0.9.0")
-    import pdfplumber
+from langchain.memory import ConversationBufferMemory
+from langchain.chains import ConversationalRetrievalChain
 
-try:
-    import requests
-except ImportError:
-    install("requests==2.31.0")
-    import requests
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
 
-try:
-    from langchain_text_splitters import RecursiveCharacterTextSplitter
-except ImportError:
-    install("langchain-text-splitters==0.2.4")
-    from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-try:
-    from langchain_core.documents import Document
-    from langchain_core.prompts import PromptTemplate
-except ImportError:
-    install("langchain-core==0.2.43")
-    from langchain_core.documents import Document
-    from langchain_core.prompts import PromptTemplate
-
-try:
-    from langchain.memory import ConversationBufferMemory
-except ImportError:
-    install("langchain-core==0.2.43")
-    from langchain.memory import ConversationBufferMemory
-
-try:
-    from langchain.chains import ConversationalRetrievalChain
-except ImportError:
-    install("langchain-core==0.2.43")
-    from langchain.chains import ConversationalRetrievalChain
-
-try:
-    from langchain_community.embeddings import HuggingFaceEmbeddings
-    from langchain_community.vectorstores import FAISS
-except ImportError:
-    install("langchain-community==0.2.19")
-    install("sentence-transformers==2.2.2")
-    install("faiss-cpu==1.13.2")
-    from langchain_community.embeddings import HuggingFaceEmbeddings
-    from langchain_community.vectorstores import FAISS
-
-try:
-    import google.generativeai as genai
-    from langchain_google_genai import ChatGoogleGenerativeAI
-except ImportError:
-    install("google-generativeai==0.3.2")
-    install("langchain-google-genai==0.0.4")
-    import google.generativeai as genai
-    from langchain_google_genai import ChatGoogleGenerativeAI
-
+import google.generativeai as genai
+from langchain_google_genai import ChatGoogleGenerativeAI
 from google.api_core.exceptions import ResourceExhausted
+
 
 # -----------------------------
 # Your existing app code
