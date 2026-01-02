@@ -9,22 +9,25 @@ from typing import List
 import pdfplumber
 import streamlit as st
 
-# LangChain 0.2+ modular imports
+# Text splitting & docs
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from langchain_core.prompts import PromptTemplate
-from langchain_core.memory import ConversationBufferMemory
-from langchain.chains import ConversationalRetrievalChain  # <--- correct now
 
+# Memory
+from langchain.memory import ConversationBufferMemory
+
+# Chains
+from langchain.chains import ConversationalRetrievalChain
+
+# Community modules
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 
+# Google Gemini integration
 import google.generativeai as genai
 from langchain_google_genai import ChatGoogleGenerativeAI
 from google.api_core.exceptions import ResourceExhausted
-
-
-
 
 
 GOOGLE_API_KEY = "AIzaSyB6tijdhntntrSl8e5AJE5n1ZpFVdufN_M"
