@@ -9,34 +9,26 @@ from typing import List
 import pdfplumber
 import streamlit as st
 
-# Text splitting & docs
+# Text splitting & documents
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
-from langchain_core.prompts import PromptTemplate
-
-# Memory
-from langchain.memory import ConversationBufferMemory
-
-# Chains
-from langchain.chains import ConversationalRetrievalChain
 
 # Community modules
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 
-# Google Gemini integration
+# Google Gemini
 import google.generativeai as genai
-from langchain_google_genai import ChatGoogleGenerativeAI
-from google.api_core.exceptions import ResourceExhausted
 
-
-
+# Configure API key
 GOOGLE_API_KEY = "AIzaSyB6tijdhntntrSl8e5AJE5n1ZpFVdufN_M"
 genai.configure(api_key=GOOGLE_API_KEY)
 os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
 
+# Streamlit page config
 st.set_page_config(page_title="What do you want to know?", layout="wide")
 
+# Custom CSS
 st.markdown(
     """
     <style>
@@ -83,6 +75,9 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# -----------------------------
+# PDF handling
+# -----------------------------
 def download_pdf_from_github(pdf_url: str) -> bytes:
     resp = requests.get(pdf_url, timeout=60)
     resp.raise_for_status()
@@ -110,10 +105,15 @@ def build_vector_store(chunks: List[Document]) -> FAISS:
     vs = FAISS.from_documents(chunks, embedding=embeddings)
     return vs
 
-def build_conversational_chain(vector_store: FAISS, memory: ConversationBufferMemory, model_name: str = "gemini-1.5-flash-latest", k: int = 4, max_output_tokens: int = 512) -> ConversationalRetrievalChain:
-    prompt_template = """
-Answer the user's question using ONLY the provided context.
-If the answer is not present in the context, say: "Answer is not available in the text."
+# -----------------------------
+# Gemini helper
+# -----------------------------
+def ask_gemini(context: str, question: str, model_name="gemini-1.5-flash-latest") -> str:
+    model = genai.GenerativeModel(model_name)
+
+    prompt = f"""
+Answer the question using ONLY the context below.
+If the answer is not present, say: "Answer is not available in the text."
 
 Context:
 {context}
@@ -123,24 +123,12 @@ Question:
 
 Answer:
 """
-    prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
-    llm = ChatGoogleGenerativeAI(
-        model=model_name,
-        temperature=0.2,
-        max_output_tokens=max_output_tokens,
-    )
-    retriever = vector_store.as_retriever(search_kwargs={"k": k})
-    chain = ConversationalRetrievalChain.from_llm(
-        llm=llm,
-        retriever=retriever,
-        memory=memory,
-        chain_type="stuff",
-        combine_docs_chain_kwargs={"prompt": prompt},
-        return_source_documents=False,
-        verbose=False,
-    )
-    return chain
+    response = model.generate_content(prompt)
+    return response.text.strip() if response.text else ""
 
+# -----------------------------
+# Load PDF once
+# -----------------------------
 PDF_URL = "https://github.com/TasfiaTahsinAnnita/AnnBot/raw/main/For%20Task%20-%20Policy%20file.pdf"
 
 if "vector_store" not in st.session_state:
@@ -154,6 +142,9 @@ if "vector_store" not in st.session_state:
         st.session_state.vector_store = build_vector_store(chunks)
     st.success("PDF loaded successfully! You can now ask questions.")
 
+# -----------------------------
+# Chat handling
+# -----------------------------
 def _new_chat(title: str | None = None):
     chat_id = str(uuid.uuid4())
     chat_title = title or f"Chat {len(st.session_state.chats) + 1}"
@@ -161,11 +152,6 @@ def _new_chat(title: str | None = None):
         "title": chat_title,
         "created_at": int(time.time()),
         "history": [],
-        "memory": ConversationBufferMemory(
-            memory_key="chat_history",
-            return_messages=True,
-            output_key="answer",
-        ),
     }
     st.session_state.nonces[chat_id] = 0
     st.session_state.current_chat_id = chat_id
@@ -180,6 +166,9 @@ if "nonces" not in st.session_state:
 if st.session_state.current_chat_id is None:
     _new_chat("Chat 1")
 
+# -----------------------------
+# Sidebar
+# -----------------------------
 st.sidebar.header("AnnBot")
 if st.sidebar.button("➕ New Chat", use_container_width=True):
     _new_chat()
@@ -199,6 +188,9 @@ if selected_id != st.session_state.current_chat_id:
     st.session_state.current_chat_id = selected_id
     st.rerun()
 
+# -----------------------------
+# Main UI
+# -----------------------------
 st.title("What do you want to know?")
 st.subheader(st.session_state.chats[st.session_state.current_chat_id]["title"])
 st.caption("Ask questions regarding the Financial policies.")
@@ -207,58 +199,40 @@ current_chat_id = st.session_state.current_chat_id
 current_chat = st.session_state.chats[current_chat_id]
 vector_store = st.session_state.vector_store
 
-# Primary chain (preferred model)
-primary_chain = build_conversational_chain(
-    vector_store,
-    current_chat["memory"],
-    model_name="gemini-1.5-flash-latest",
-    k=4,
-    max_output_tokens=512,
-)
-
-# Fallback chain (lighter model & smaller retrieval/output)
-fallback_chain = build_conversational_chain(
-    vector_store,
-    current_chat["memory"],
-    model_name="gemini-1.5-flash-8b",
-    k=3,
-    max_output_tokens=256,
-)
-
+# Show chat history
 if current_chat["history"]:
     st.markdown("<div class='chat-meta'>Recent messages</div>", unsafe_allow_html=True)
 for q, a in current_chat["history"][-20:]:
     st.markdown(f"<div class='user-q'>You: {escape(q)}</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='bot-a'>Bot: {escape(a)}</div>", unsafe_allow_html=True)
 
+# Input
 nonce = st.session_state.nonces.get(current_chat_id, 0)
 q_key = f"q_input_{current_chat_id}_{nonce}"
 question = st.text_input("Enter your question:", key=q_key)
 
+# Submit
 if st.button("Submit", type="primary", key=f"submit_{current_chat_id}"):
     if question.strip():
-        try:
-            with st.spinner("Thinking..."):
-                result = primary_chain({"question": question.strip()})
-                answer = result.get("answer", "").strip()
-        except ResourceExhausted:
-            st.warning("Primary model hit a usage limit. Switching to a lighter fallback model.")
+        with st.spinner("Thinking..."):
+            # Retrieve context from FAISS
+            docs = vector_store.similarity_search(question.strip(), k=4)
+            context = "\n\n".join(d.page_content for d in docs)
+
             try:
-                result = fallback_chain({"question": question.strip()})
-                answer = result.get("answer", "").strip()
-            except Exception as e:
-                st.error("The model is temporarily unavailable. Please try a shorter question or try again later.")
+                answer = ask_gemini(context, question.strip())
+            except Exception:
+                st.error("The model is temporarily unavailable. Please try again.")
                 answer = ""
-        except Exception as e:
-            st.error("Something went wrong while generating the answer.")
-            answer = ""
 
         if answer:
             current_chat["history"].append((question.strip(), answer))
-            if len(current_chat["history"]) == 1 and question.strip():
+
+            if len(current_chat["history"]) == 1:
                 t = question.strip()
                 current_chat["title"] = (t[:30] + "…") if len(t) > 30 else t
-            st.session_state.nonces[current_chat_id] = nonce + 1
+
+            st.session_state.nonces[current_chat_id] += 1
             st.rerun()
     else:
         st.warning("Please ask your queries.")
