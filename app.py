@@ -3,17 +3,18 @@ import io
 import time
 import uuid
 import requests
-import pdfplumber
-import streamlit as st
 from html import escape
 from typing import List
+
+import pdfplumber
+import streamlit as st
 
 # LangChain 0.2+ modular imports
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from langchain_core.prompts import PromptTemplate
-from langchain_core.chains import ConversationalRetrievalChain
 from langchain_core.memory import ConversationBufferMemory
+from langchain.chains import ConversationalRetrievalChain  # <--- correct now
 
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
