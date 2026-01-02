@@ -20,7 +20,6 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 
 import google.generativeai as genai
-from langchain_google_genai import ChatGoogleGenerativeAI
 from google.api_core.exceptions import ResourceExhausted
 
 
@@ -125,14 +124,10 @@ Question:
 Answer:
 """
     prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
-    llm = ChatGoogleGenerativeAI(
-        model=model_name,
-        temperature=0.2,
-        max_output_tokens=max_output_tokens,
-    )
+    
     retriever = vector_store.as_retriever(search_kwargs={"k": k})
     chain = ConversationalRetrievalChain.from_llm(
-        llm=llm,
+        llm=None,
         retriever=retriever,
         memory=memory,
         chain_type="stuff",
@@ -214,21 +209,15 @@ vector_store = st.session_state.vector_store
 # -----------------------------
 # LLM Chains
 # -----------------------------
-primary_chain = build_conversational_chain(
-    vector_store,
-    current_chat["memory"],
-    model_name="gemini-1.5-flash-latest",
-    k=4,
-    max_output_tokens=512,
-)
-
-fallback_chain = build_conversational_chain(
-    vector_store,
-    current_chat["memory"],
-    model_name="gemini-1.5-flash-8b",
-    k=3,
-    max_output_tokens=256,
-)
+def generate_answer_with_model(question):
+    try:
+        model = genai.GenerativeModel("gemini-1.5-flash-latest")
+        prompt = f"Answer the user's question using ONLY the provided context.\n\nContext: {context}\n\nQuestion: {question}\n\nAnswer:"
+        result = model.generate_content(prompt)
+        return result.text
+    except Exception as e:
+        st.error(f"Error with the model: {e}")
+        return ""
 
 if current_chat["history"]:
     st.markdown("<div class='chat-meta'>Recent messages</div>", unsafe_allow_html=True)
@@ -241,29 +230,19 @@ q_key = f"q_input_{current_chat_id}_{nonce}"
 question = st.text_input("Enter your question:", key=q_key)
 
 if st.button("Submit", type="primary", key=f"submit_{current_chat_id}"):
+
     if question.strip():
         try:
             with st.spinner("Thinking..."):
-                result = primary_chain({"question": question.strip()})
-                answer = result.get("answer", "").strip()
-        except ResourceExhausted:
-            st.warning("Primary model hit a usage limit. Switching to a lighter fallback model.")
-            try:
-                result = fallback_chain({"question": question.strip()})
-                answer = result.get("answer", "").strip()
-            except Exception:
-                st.error("The model is temporarily unavailable. Please try again later.")
-                answer = ""
-        except Exception:
-            st.error("Something went wrong while generating the answer.")
-            answer = ""
-
-        if answer:
+                context = "Provide the document context here"
+                answer = generate_answer_with_model(question.strip())
             current_chat["history"].append((question.strip(), answer))
             if len(current_chat["history"]) == 1 and question.strip():
                 t = question.strip()
                 current_chat["title"] = (t[:30] + "…") if len(t) > 30 else t
             st.session_state.nonces[current_chat_id] = nonce + 1
             st.rerun()
+        except Exception as e:
+            st.error(f"Error generating answer: {e}")
     else:
         st.warning("Please ask your queries.")
