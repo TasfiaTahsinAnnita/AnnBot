@@ -5,23 +5,24 @@ import uuid
 import requests
 import pdfplumber
 import streamlit as st
-
 from html import escape
 from typing import List
+
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
-
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
-
 import google.generativeai as genai
 from langchain_google_genai import ChatGoogleGenerativeAI
 from google.api_core.exceptions import ResourceExhausted
-
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
+
+
+
+
 
 GOOGLE_API_KEY = "AIzaSyB6tijdhntntrSl8e5AJE5n1ZpFVdufN_M"
 genai.configure(api_key=GOOGLE_API_KEY)
